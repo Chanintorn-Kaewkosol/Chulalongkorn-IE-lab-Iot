@@ -281,9 +281,9 @@ def create_network_graph(df):
             label=str(group_id),
             shape='hexagon',
             color=group_color,
-            size=30,  # Larger box size
+            size=36,  # Larger box size
             title=f"Group: {group_id}<br>Records: {count}",
-            mass=2,  # Heavier mass for group nodes
+            mass=3,  # Heavier mass for group nodes
             font={'color': 'white', 'size': 16, 'face': 'Arial'}
         )
 
@@ -322,7 +322,7 @@ def create_network_graph(df):
             label=value_display,
             shape='dot',
             color=node_color,
-            size=12,
+            size=24,
             title=f"ID: {row['id']}<br>Value: {row['value']}<br>Group: {row['group_id']}<br>Time: {row['timestamp']}",
             mass=1  # Lighter mass for data nodes
         )
