@@ -183,10 +183,10 @@ def create_network_graph(df):
                 label=str(group_id),
                 shape='box',
                 color='#FFFFFF',
-                size=30,
+                size=50,
                 title=f"Group: {group_id}<br>Records: {count}",
                 mass=5,  # Heavier mass for group nodes
-                font={'color': 'white', 'size': 14, 'face': 'Arial'}
+                font=16
             )
 
     # Add data nodes (circles) and edges
