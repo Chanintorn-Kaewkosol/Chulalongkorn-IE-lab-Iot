@@ -573,14 +573,45 @@ try:
             with open(tmpfile_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
 
-            # Add JavaScript to auto-refresh only the graph section
+            # Add JavaScript to save/restore zoom and position, then auto-refresh
             if st.session_state.auto_refresh_enabled:
-                refresh_script = f"""
+                refresh_script = """
                 <script>
-                    setTimeout(function() {{
-                        // Only refresh this component
+                    // Save zoom and position before reload
+                    window.addEventListener('beforeunload', function() {
+                        var network = window.network;
+                        if (network) {
+                            var scale = network.getScale();
+                            var position = network.getViewPosition();
+                            localStorage.setItem('networkScale', scale);
+                            localStorage.setItem('networkPosition', JSON.stringify(position));
+                        }
+                    });
+
+                    // Restore zoom and position after load
+                    window.addEventListener('load', function() {
+                        setTimeout(function() {
+                            var network = window.network;
+                            if (network) {
+                                var savedScale = localStorage.getItem('networkScale');
+                                var savedPosition = localStorage.getItem('networkPosition');
+
+                                if (savedScale && savedPosition) {
+                                    var position = JSON.parse(savedPosition);
+                                    network.moveTo({
+                                        position: position,
+                                        scale: parseFloat(savedScale),
+                                        animation: false
+                                    });
+                                }
+                            }
+                        }, 500);
+                    });
+
+                    // Auto-refresh every 10 seconds
+                    setTimeout(function() {
                         window.location.reload();
-                    }}, 10000);
+                    }, 10000);
                 </script>
                 """
                 html_content = html_content.replace('</body>', refresh_script + '</body>')
