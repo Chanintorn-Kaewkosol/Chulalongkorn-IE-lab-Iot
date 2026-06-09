@@ -609,8 +609,8 @@ try:
             with open(tmpfile_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
 
-            # Display using Streamlit components with unique key to force refresh
-            components.html(html_content, height=720, scrolling=False, key=f"network_graph_{unique_id}")
+            # Display using Streamlit components (no key parameter)
+            components.html(html_content, height=720, scrolling=False)
 
             # Clean up temp file
             try:
@@ -625,8 +625,8 @@ try:
         # Display data table (only id, timestamp, value, group_id)
         st.subheader("📋 Data Table")
         df_display = df[['id', 'timestamp', 'value', 'group_id']]
-        # Force table refresh by using a unique key
-        st.dataframe(df_display, use_container_width=True, key=f"data_table_{unique_id}")
+        # Use container to force refresh
+        st.dataframe(df_display, use_container_width=True)
 
         # Download button
         csv = df_display.to_csv(index=False)
