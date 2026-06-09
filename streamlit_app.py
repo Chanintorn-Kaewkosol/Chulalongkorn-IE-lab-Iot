@@ -225,7 +225,7 @@ def create_network_graph(df):
             net.add_node(
                 group_node_id,
                 label=str(group_id),
-                shape='square',
+                shape='hexagon',
                 color='#FFFFFF',
                 size=30,  # Larger box size
                 title=f"Group: {group_id}<br>Records: {count}",
