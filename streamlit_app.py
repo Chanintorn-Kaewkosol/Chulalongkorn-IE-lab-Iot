@@ -2,7 +2,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import os
+import plotly.graph_objects as go
+import random
 
 # Database setup
 DB_NAME = "iot_db.db"
@@ -15,21 +16,21 @@ def init_database():
         CREATE TABLE IF NOT EXISTS sensor_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            value REAL NOT NULL,
-            sensor_id TEXT
+            value TEXT NOT NULL,
+            group_id TEXT
         )
     """)
     conn.commit()
     conn.close()
 
-def save_sensor_data(value, sensor_id=None):
+def save_sensor_data(value, group_id=None):
     """Save sensor data to database"""
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO sensor_data (value, sensor_id) VALUES (?, ?)",
-            (float(value), sensor_id)
+            "INSERT INTO sensor_data (value, group_id) VALUES (?, ?)",
+            (str(value), group_id)
         )
         conn.commit()
         conn.close()
@@ -50,15 +51,84 @@ def get_statistics():
     """Get basic statistics from the database"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*), AVG(value), MIN(value), MAX(value) FROM sensor_data")
-    stats = cursor.fetchone()
+
+    # Total records
+    cursor.execute("SELECT COUNT(*) FROM sensor_data")
+    total_records = cursor.fetchone()[0]
+
+    # Most frequent value
+    cursor.execute("""
+        SELECT value, COUNT(*) as freq
+        FROM sensor_data
+        GROUP BY value
+        ORDER BY freq DESC
+        LIMIT 1
+    """)
+    most_freq = cursor.fetchone()
+
     conn.close()
     return {
-        "total_records": stats[0],
-        "average": stats[1],
-        "minimum": stats[2],
-        "maximum": stats[3]
+        "total_records": total_records,
+        "most_frequent_value": most_freq[0] if most_freq else "N/A",
+        "most_frequent_count": most_freq[1] if most_freq else 0
     }
+
+def create_bubble_chart(df):
+    """Create a floating bubble chart visualization"""
+    if df.empty:
+        return None
+
+    # Assign random positions for floating effect
+    df['x'] = [random.uniform(0, 10) for _ in range(len(df))]
+    df['y'] = [random.uniform(0, 10) for _ in range(len(df))]
+    df['size'] = [random.uniform(20, 60) for _ in range(len(df))]
+
+    # Create color mapping for different values
+    unique_values = df['value'].unique()
+    colors = {}
+    color_palette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+                     '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B500', '#52B788']
+
+    for idx, val in enumerate(unique_values):
+        colors[val] = color_palette[idx % len(color_palette)]
+
+    df['color'] = df['value'].map(colors)
+
+    # Create the bubble chart
+    fig = go.Figure()
+
+    for _, row in df.iterrows():
+        fig.add_trace(go.Scatter(
+            x=[row['x']],
+            y=[row['y']],
+            mode='markers+text',
+            marker=dict(
+                size=row['size'],
+                color=row['color'],
+                opacity=0.7,
+                line=dict(color='white', width=2)
+            ),
+            text=str(row['value']),
+            textposition="middle center",
+            textfont=dict(size=12, color='white', family='Arial Black'),
+            hovertemplate=f"<b>Value:</b> {row['value']}<br>" +
+                         f"<b>Group ID:</b> {row['group_id']}<br>" +
+                         f"<b>Timestamp:</b> {row['timestamp']}<br>" +
+                         "<extra></extra>",
+            showlegend=False
+        ))
+
+    fig.update_layout(
+        title="Real-time Data Visualization",
+        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
+        yaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=600,
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+
+    return fig
 
 # Initialize database
 init_database()
@@ -78,11 +148,11 @@ query_params = st.query_params
 # Check if data is being sent via GET request
 if "value" in query_params:
     sensor_value = query_params["value"]
-    sensor_id = query_params.get("sensor_id", "pico_w_default")
+    group_id = query_params.get("group_id", "default")
 
     # Save to database
-    if save_sensor_data(sensor_value, sensor_id):
-        st.success(f"✅ Data received and saved: {sensor_value} from sensor '{sensor_id}'")
+    if save_sensor_data(sensor_value, group_id):
+        st.success(f"✅ Data received and saved: {sensor_value} from group '{group_id}'")
         st.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Clear the query params to avoid re-saving on refresh
@@ -96,36 +166,43 @@ st.header("📊 Statistics")
 try:
     stats = get_statistics()
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Records", stats["total_records"])
     with col2:
-        st.metric("Average Value", f"{stats['average']:.2f}" if stats['average'] else "N/A")
-    with col3:
-        st.metric("Minimum Value", f"{stats['minimum']:.2f}" if stats['minimum'] else "N/A")
-    with col4:
-        st.metric("Maximum Value", f"{stats['maximum']:.2f}" if stats['maximum'] else "N/A")
+        if stats["most_frequent_value"] != "N/A":
+            st.metric(
+                "Most Frequent Value",
+                stats["most_frequent_value"],
+                delta=f"{stats['most_frequent_count']} occurrences"
+            )
+        else:
+            st.metric("Most Frequent Value", "N/A")
 except Exception as e:
     st.warning("No data available yet")
 
 st.markdown("---")
 
-# Recent data section
-st.header("📋 Recent Sensor Data")
+# Bubble chart visualization
+st.header("🔵 Real-time Data Nodes")
 
 # Number of records to display
-num_records = st.slider("Number of records to display", 10, 500, 100)
+num_records = st.slider("Number of records to display", 10, 100, 50)
 
 try:
     df = get_all_data(limit=num_records)
 
     if not df.empty:
-        # Display data table
-        st.dataframe(df, use_container_width=True)
+        # Create and display bubble chart
+        fig = create_bubble_chart(df)
+        if fig:
+            st.plotly_chart(fig, use_container_width=True)
 
-        # Plot data
-        st.subheader("📈 Sensor Value Timeline")
-        st.line_chart(df.set_index('timestamp')['value'])
+        st.markdown("---")
+
+        # Display data table
+        st.subheader("📋 Data Table")
+        st.dataframe(df, use_container_width=True)
 
         # Download button
         csv = df.to_csv(index=False)
@@ -136,7 +213,7 @@ try:
             mime="text/csv"
         )
     else:
-        st.info("No data recorded yet. Send data from your RP Pico W!")
+        st.info("No data recorded yet. Send data via GET request!")
 
 except Exception as e:
     st.error(f"Error loading data: {e}")
@@ -146,47 +223,21 @@ st.markdown("---")
 st.header("🔌 How to Send Data")
 
 st.markdown("""
-### From your RP Pico W, send a GET request to:
+### Send a GET request to:
 
 ```
-https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_SENSOR_VALUE>
+https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_DATA>
 ```
 
-### Optional: Include sensor ID
+### Optional: Include group ID
 ```
-https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_SENSOR_VALUE>&sensor_id=<SENSOR_NAME>
+https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_DATA>&group_id=<GROUP_NAME>
 ```
 
-### Example MicroPython code for RP Pico W:
-```python
-import network
-import urequests
-import time
-
-# WiFi setup
-ssid = 'YOUR_WIFI_SSID'
-password = 'YOUR_WIFI_PASSWORD'
-
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.connect(ssid, password)
-
-while not wlan.isconnected():
-    time.sleep(1)
-
-print('Connected to WiFi')
-
-# Send sensor data
-sensor_value = 25.5  # Your sensor reading
-url = f"https://chulalongkorn-lab-iot.streamlit.app/?value={sensor_value}&sensor_id=temperature"
-
-try:
-    response = urequests.get(url)
-    print(f"Status: {response.status_code}")
-    response.close()
-except Exception as e:
-    print(f"Error: {e}")
-```
+### Examples:
+- `?value=temperature_high&group_id=room1`
+- `?value=25.5&group_id=sensor_a`
+- `?value=active`
 """)
 
 # Refresh button

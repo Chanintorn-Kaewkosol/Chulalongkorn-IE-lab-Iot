@@ -1,61 +1,34 @@
 # 🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard
 
-A Streamlit web application for collecting and visualizing sensor data from RP Pico W IoT devices.
+A Streamlit web application for collecting and visualizing sensor data from IoT devices with real-time floating bubble visualization.
 
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chulalongkorn-lab-iot.streamlit.app/)
 
 ## Features
 
-- ✅ Receive sensor data via GET requests from RP Pico W
+- ✅ Receive sensor data via GET requests (supports string and numeric values)
 - ✅ Store data in SQLite database (`iot_db.db`)
-- ✅ Real-time data visualization dashboard
-- ✅ Statistics and analytics
+- ✅ Real-time floating bubble visualization (nodes appear as data arrives)
+- ✅ Statistics: Total records & Most frequent value
 - ✅ Export data to CSV
-- ✅ Support for multiple sensors with sensor IDs
+- ✅ Support for multiple groups with group IDs
 
-## How to Send Data from RP Pico W
+## How to Send Data
 
 Send a GET request to:
 ```
-https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_SENSOR_VALUE>
+https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_DATA>
 ```
 
-With optional sensor ID:
+With optional group ID:
 ```
-https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_SENSOR_VALUE>&sensor_id=<SENSOR_NAME>
+https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_DATA>&group_id=<GROUP_NAME>
 ```
 
-### Example MicroPython Code
-
-```python
-import network
-import urequests
-import time
-
-# WiFi setup
-ssid = 'YOUR_WIFI_SSID'
-password = 'YOUR_WIFI_PASSWORD'
-
-wlan = network.WLAN(network.STA_IF)
-wlan.active(True)
-wlan.connect(ssid, password)
-
-while not wlan.isconnected():
-    time.sleep(1)
-
-print('Connected to WiFi')
-
-# Send sensor data
-sensor_value = 25.5  # Your sensor reading
-url = f"https://chulalongkorn-lab-iot.streamlit.app/?value={sensor_value}&sensor_id=temperature"
-
-try:
-    response = urequests.get(url)
-    print(f"Status: {response.status_code}")
-    response.close()
-except Exception as e:
-    print(f"Error: {e}")
-```
+### Examples:
+- `?value=temperature_high&group_id=room1`
+- `?value=25.5&group_id=sensor_a`
+- `?value=active`
 
 ## How to Run Locally
 
@@ -79,8 +52,16 @@ The SQLite database (`iot_db.db`) contains a `sensor_data` table with:
 
 - `id`: Auto-incrementing primary key
 - `timestamp`: Automatic timestamp when data is received
-- `value`: Sensor value (REAL)
-- `sensor_id`: Optional sensor identifier (TEXT)
+- `value`: Sensor value (TEXT - supports any string or number)
+- `group_id`: Optional group identifier (TEXT)
+
+## Visualization
+
+Data appears as **floating bubble nodes** with:
+- Random positioning for dynamic effect
+- Color-coded by value
+- Hover to see details (value, group_id, timestamp)
+- Real-time updates when new data arrives
 
 ## Deployment
 
