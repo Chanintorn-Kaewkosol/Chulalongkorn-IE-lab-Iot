@@ -605,13 +605,13 @@ try:
                                     });
                                 }
                             }
-                        }, 10);
+                        }, 1);
                     });
 
                     // Auto-refresh every 10 seconds
                     setTimeout(function() {
                         window.location.reload();
-                    }, 10000);
+                    }, 15000);
                 </script>
                 """
                 html_content = html_content.replace('</body>', refresh_script + '</body>')
