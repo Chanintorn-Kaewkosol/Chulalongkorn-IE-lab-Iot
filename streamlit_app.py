@@ -7,9 +7,13 @@ import streamlit.components.v1 as components
 import tempfile
 import os
 import time
+import hashlib
 
 # Database setup
 DB_NAME = "iot_db.db"
+
+# Admin credentials (CHANGE THIS PASSWORD!)
+ADMIN_PASSWORD_HASH = hashlib.sha256("admin123".encode()).hexdigest()  # Change "admin123" to your password
 
 def init_database():
     """Initialize SQLite database and create table if it doesn't exist"""
@@ -106,6 +110,39 @@ def clear_all_data():
         st.error(f"Error clearing data: {e}")
         return False
 
+def delete_record(record_id):
+    """Delete a specific record by ID"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sensor_data WHERE id = ?", (record_id,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        return False
+
+def update_record(record_id, value, group_id):
+    """Update a specific record"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE sensor_data SET value = ?, group_id = ? WHERE id = ?",
+                      (value, group_id, record_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        return False
+
+def add_record(value, group_id):
+    """Manually add a new record"""
+    return save_sensor_data(value, group_id)
+
+def check_admin_password(password):
+    """Check if the provided password matches admin password"""
+    return hashlib.sha256(password.encode()).hexdigest() == ADMIN_PASSWORD_HASH
+
 def create_network_graph(df):
     """Create an interactive physics-based network graph with draggable nodes"""
     if df.empty:
@@ -182,11 +219,11 @@ def create_network_graph(df):
                 group_node_id,
                 label=str(group_id),
                 shape='box',
-                color='#FFFFFF',
-                size=50,
+                color='#34495e',
+                size=60,  # Larger box size
                 title=f"Group: {group_id}<br>Records: {count}",
                 mass=5,  # Heavier mass for group nodes
-                font=32
+                font={'color': 'white', 'size': 16, 'face': 'Arial'}
             )
 
     # Add data nodes (circles) and edges
@@ -221,11 +258,9 @@ def create_network_graph(df):
 # Initialize database
 init_database()
 
-# Initialize session state for delete confirmation
-if 'delete_clicks' not in st.session_state:
-    st.session_state.delete_clicks = 0
-if 'last_click_time' not in st.session_state:
-    st.session_state.last_click_time = 0
+# Initialize session state
+if 'admin_logged_in' not in st.session_state:
+    st.session_state.admin_logged_in = False
 
 # Page configuration
 st.set_page_config(
@@ -254,6 +289,127 @@ st.title("🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard")
 # Get query parameters from URL
 query_params = st.query_params
 
+# Admin Panel Access
+if "admin" in query_params:
+    st.markdown("---")
+    st.header("🔐 Admin Panel")
+
+    if not st.session_state.admin_logged_in:
+        # Login form
+        password = st.text_input("Enter Admin Password", type="password", key="admin_password")
+        if st.button("Login"):
+            if check_admin_password(password):
+                st.session_state.admin_logged_in = True
+                st.success("✅ Logged in successfully!")
+                st.rerun()
+            else:
+                st.error("❌ Invalid password!")
+    else:
+        # Admin is logged in
+        st.success("✅ Admin Access Granted")
+
+        if st.button("🚪 Logout"):
+            st.session_state.admin_logged_in = False
+            st.rerun()
+
+        st.markdown("---")
+
+        # Admin tabs
+        tab1, tab2, tab3, tab4 = st.tabs(["📋 View All Data", "➕ Add Record", "✏️ Edit Record", "🗑️ Delete"])
+
+        with tab1:
+            st.subheader("All Records")
+            all_data = get_all_data(limit=1000)
+            if not all_data.empty:
+                st.dataframe(all_data, use_container_width=True)
+
+                csv = all_data.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Full Database as CSV",
+                    data=csv,
+                    file_name=f"full_database_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("No data available")
+
+        with tab2:
+            st.subheader("Add New Record")
+            new_value = st.text_input("Value")
+            new_group_id = st.text_input("Group ID (leave empty for None)")
+
+            if st.button("➕ Add Record"):
+                if new_value:
+                    group = new_group_id if new_group_id else None
+                    if add_record(new_value, group):
+                        st.success(f"✅ Record added: {new_value} (Group: {group})")
+                        time.sleep(1)
+                        st.rerun()
+                else:
+                    st.warning("Please enter a value")
+
+        with tab3:
+            st.subheader("Edit Record")
+            all_data = get_all_data(limit=1000)
+            if not all_data.empty:
+                record_id = st.selectbox("Select Record ID", all_data['id'].tolist())
+                selected_record = all_data[all_data['id'] == record_id].iloc[0]
+
+                st.info(f"Current: ID={selected_record['id']}, Value={selected_record['value']}, Group={selected_record['group_id']}")
+
+                edit_value = st.text_input("New Value", value=str(selected_record['value']))
+                edit_group_id = st.text_input("New Group ID", value=str(selected_record['group_id']) if selected_record['group_id'] else "")
+
+                if st.button("💾 Update Record"):
+                    group = edit_group_id if edit_group_id else None
+                    if update_record(record_id, edit_value, group):
+                        st.success(f"✅ Record {record_id} updated!")
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                st.info("No data available")
+
+        with tab4:
+            st.subheader("Delete Records")
+
+            col_a, col_b = st.columns(2)
+
+            with col_a:
+                st.markdown("#### Delete Single Record")
+                all_data = get_all_data(limit=1000)
+                if not all_data.empty:
+                    delete_id = st.selectbox("Select Record ID to Delete", all_data['id'].tolist())
+                    selected = all_data[all_data['id'] == delete_id].iloc[0]
+                    st.warning(f"⚠️ You are about to delete: ID={selected['id']}, Value={selected['value']}, Group={selected['group_id']}")
+
+                    if st.button("🗑️ Delete This Record"):
+                        if delete_record(delete_id):
+                            st.success(f"✅ Record {delete_id} deleted!")
+                            time.sleep(1)
+                            st.rerun()
+                else:
+                    st.info("No data available")
+
+            with col_b:
+                st.markdown("#### Clear All Data")
+                st.warning("⚠️ **DANGER ZONE**: This will delete ALL records from the database!")
+                confirm_text = st.text_input("Type 'DELETE ALL' to confirm")
+
+                if st.button("🗑️ Clear All Data", type="primary"):
+                    if confirm_text == "DELETE ALL":
+                        if clear_all_data():
+                            st.success("✅ All data cleared!")
+                            time.sleep(1)
+                            st.rerun()
+                    else:
+                        st.error("❌ Please type 'DELETE ALL' to confirm")
+
+        st.markdown("---")
+        st.info("💡 To exit admin panel, remove ?admin from the URL")
+
+        # Stop here - don't show the public dashboard
+        st.stop()
+
 # Check if data is being sent via GET request
 if "value" in query_params:
     sensor_value = query_params["value"]
@@ -276,7 +432,7 @@ st.header("📊 Statistics")
 try:
     stats = get_statistics()
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Records", stats["total_records"])
     with col2:
@@ -288,36 +444,6 @@ try:
             )
         else:
             st.metric("Most Frequent Value", "N/A")
-    with col3:
-        # Clear data button with multi-click confirmation
-        current_time = time.time()
-
-        # Reset clicks if more than 3 seconds passed since last click
-        if current_time - st.session_state.last_click_time > 3:
-            st.session_state.delete_clicks = 0
-
-        clicks_remaining = 5 - st.session_state.delete_clicks
-
-        if st.session_state.delete_clicks < 5:
-            button_label = f"🗑️ Clear All Data ({clicks_remaining} clicks)"
-        else:
-            button_label = "🗑️ DELETING..."
-
-        if st.button(button_label, type="primary" if st.session_state.delete_clicks >= 4 else "secondary"):
-            st.session_state.delete_clicks += 1
-            st.session_state.last_click_time = time.time()
-
-            if st.session_state.delete_clicks >= 5:
-                if clear_all_data():
-                    st.success("✅ All data has been cleared!")
-                    st.session_state.delete_clicks = 0
-                    time.sleep(1)
-                    st.rerun()
-            else:
-                st.warning(f"⚠️ Click {5 - st.session_state.delete_clicks} more times to confirm deletion!")
-
-        if st.session_state.delete_clicks > 0 and st.session_state.delete_clicks < 5:
-            st.caption(f"Progress: {st.session_state.delete_clicks}/5 clicks")
 
 except Exception as e:
     st.warning("No data available yet")
