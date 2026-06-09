@@ -254,12 +254,12 @@ def create_network_graph(df):
     # Rainbow color palette (7 colors) for groups
     rainbow_colors = [
         '#FF0000',  # Red
+        '#9400D3',  # Violet
         '#FF7F00',  # Orange
-        '#FFFF00',  # Yellow
-        '#00FF00',  # Green
-        '#0000FF',  # Blue
         '#4B0082',  # Indigo
-        '#9400D3'   # Violet
+        '#FFFF00',  # Yellow
+        '#0000FF',  # Blue
+        '#00FF00',  # Green
     ]
 
     # Get unique group_ids and create color mapping
