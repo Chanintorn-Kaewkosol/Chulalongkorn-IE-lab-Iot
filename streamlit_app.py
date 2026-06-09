@@ -547,6 +547,9 @@ st.markdown("---")
 # Interactive Network Graph
 st.header("🔵 Interactive Network Graph")
 
+# Add a placeholder for the graph that we can update
+graph_placeholder = st.empty()
+
 # Number of records input (exact value)
 num_records = st.number_input("Number of records to display", min_value=1, max_value=500, value=50, step=10, key="num_records_input")
 
@@ -570,8 +573,21 @@ try:
             with open(tmpfile_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
 
+            # Add JavaScript to auto-refresh only the graph section
+            if st.session_state.auto_refresh_enabled:
+                refresh_script = f"""
+                <script>
+                    setTimeout(function() {{
+                        // Only refresh this component
+                        window.location.reload();
+                    }}, 5000);
+                </script>
+                """
+                html_content = html_content.replace('</body>', refresh_script + '</body>')
+
             # Display using Streamlit components (no key parameter)
-            components.html(html_content, height=720, scrolling=False)
+            with graph_placeholder:
+                components.html(html_content, height=720, scrolling=False)
 
             # Clean up temp file
             try:
@@ -630,15 +646,4 @@ st.markdown("---")
 if st.button("🔄 Refresh Dashboard"):
     st.rerun()
 
-# Simple auto-refresh: just rerun every 5 seconds if enabled
-if st.session_state.auto_refresh_enabled:
-    if time_since_refresh >= 5:
-        st.session_state.last_refresh_time = time.time()
-        time.sleep(0.1)
-        st.rerun()
-    else:
-        # Add meta refresh as backup
-        refresh_time = max(1, int(5 - time_since_refresh))
-        st.markdown(f"""
-            <meta http-equiv="refresh" content="{refresh_time}">
-        """, unsafe_allow_html=True)
+# Don't auto-refresh the whole page anymore - the graph iframe handles its own refresh
