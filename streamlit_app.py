@@ -6,7 +6,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 import tempfile
 import os
-import numpy as np
+import time
 
 # Database setup
 DB_NAME = "iot_db.db"
@@ -92,6 +92,19 @@ def get_statistics():
         "most_frequent_value": most_freq[0] if most_freq else "N/A",
         "most_frequent_count": most_freq[1] if most_freq else 0
     }
+
+def clear_all_data():
+    """Delete all records from the database"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sensor_data")
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"Error clearing data: {e}")
+        return False
 
 def create_network_graph(df):
     """Create an interactive physics-based network graph with draggable nodes"""
@@ -207,12 +220,33 @@ def create_network_graph(df):
 # Initialize database
 init_database()
 
+# Initialize session state for delete confirmation
+if 'delete_clicks' not in st.session_state:
+    st.session_state.delete_clicks = 0
+if 'last_click_time' not in st.session_state:
+    st.session_state.last_click_time = 0
+
 # Page configuration
 st.set_page_config(
     page_title="Chulalongkorn IoT Lab",
     page_icon="🌡️",
     layout="wide"
 )
+
+# Auto-reload every 5 seconds
+st_autorefresh = st.empty()
+with st_autorefresh:
+    # This creates a placeholder that will trigger rerun
+    time.sleep(0.1)
+
+# JavaScript for auto-refresh every 5 seconds
+st.markdown("""
+    <script>
+        setTimeout(function() {
+            window.parent.location.reload();
+        }, 5000);
+    </script>
+""", unsafe_allow_html=True)
 
 st.title("🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard")
 
@@ -241,7 +275,7 @@ st.header("📊 Statistics")
 try:
     stats = get_statistics()
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Records", stats["total_records"])
     with col2:
@@ -253,16 +287,47 @@ try:
             )
         else:
             st.metric("Most Frequent Value", "N/A")
+    with col3:
+        # Clear data button with multi-click confirmation
+        current_time = time.time()
+
+        # Reset clicks if more than 3 seconds passed since last click
+        if current_time - st.session_state.last_click_time > 3:
+            st.session_state.delete_clicks = 0
+
+        clicks_remaining = 5 - st.session_state.delete_clicks
+
+        if st.session_state.delete_clicks < 5:
+            button_label = f"🗑️ Clear All Data ({clicks_remaining} clicks)"
+        else:
+            button_label = "🗑️ DELETING..."
+
+        if st.button(button_label, type="primary" if st.session_state.delete_clicks >= 4 else "secondary"):
+            st.session_state.delete_clicks += 1
+            st.session_state.last_click_time = time.time()
+
+            if st.session_state.delete_clicks >= 5:
+                if clear_all_data():
+                    st.success("✅ All data has been cleared!")
+                    st.session_state.delete_clicks = 0
+                    time.sleep(1)
+                    st.rerun()
+            else:
+                st.warning(f"⚠️ Click {5 - st.session_state.delete_clicks} more times to confirm deletion!")
+
+        if st.session_state.delete_clicks > 0 and st.session_state.delete_clicks < 5:
+            st.caption(f"Progress: {st.session_state.delete_clicks}/5 clicks")
+
 except Exception as e:
     st.warning("No data available yet")
 
 st.markdown("---")
 
-# Bubble chart visualization
+# Interactive Network Graph
 st.header("🔵 Interactive Network Graph")
 
-# Number of records to display
-num_records = st.slider("Number of records to display", 10, 100, 50)
+# Number of records input (exact value)
+num_records = st.number_input("Number of records to display", min_value=1, max_value=500, value=50, step=10)
 
 try:
     df = get_all_data(limit=num_records)
