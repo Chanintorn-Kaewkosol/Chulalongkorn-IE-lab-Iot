@@ -171,7 +171,7 @@ def create_network_graph(df):
             "enabled": true,
             "forceAtlas2Based": {
                 "gravitationalConstant": -50,
-                "centralGravity": 0.01,
+                "centralGravity": 0.05,
                 "springLength": 100,
                 "springConstant": 0.08,
                 "damping": 0.4,
@@ -229,7 +229,7 @@ def create_network_graph(df):
                 color='#000000',
                 size=30,  # Larger box size
                 title=f"Group: {group_id}<br>Records: {count}",
-                mass=5,  # Heavier mass for group nodes
+                mass=2,  # Heavier mass for group nodes
                 font={'color': 'white', 'size': 16, 'face': 'Arial'}
             )
 
@@ -247,7 +247,7 @@ def create_network_graph(df):
             color=node_color,
             size=30,
             title=f"ID: {row['id']}<br>Value: {row['value']}<br>Group: {row['group_id']}<br>Time: {row['timestamp']}",
-            mass=2  # Lighter mass for data nodes
+            mass=1  # Lighter mass for data nodes
         )
 
         # Add edge connecting data node to group node
