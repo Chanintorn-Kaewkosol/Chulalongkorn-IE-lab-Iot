@@ -237,7 +237,7 @@ def create_network_graph(df):
     for idx, row in df.iterrows():
         node_id = f"data_{row['id']}"
         node_color = colors.get(row['value'], '#95A5A6')
-        value_display = str(row['value'])[:10]  # Truncate long values
+        value_display = str(row['value'])  # Truncate long values
 
         # Add data node
         net.add_node(
