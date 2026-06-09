@@ -12,8 +12,15 @@ import hashlib
 # Database setup
 DB_NAME = "iot_db.db"
 
-# Admin credentials (CHANGE THIS PASSWORD!)
-ADMIN_PASSWORD_HASH = hashlib.sha256("admin123".encode()).hexdigest()  # Change "admin123" to your password
+# Admin credentials from Streamlit secrets (secure)
+# Set this in Streamlit Cloud: Settings > Secrets
+# Format in secrets.toml:
+# admin_password = "your_secure_password_here"
+try:
+    ADMIN_PASSWORD = st.secrets["admin_password"]
+except:
+    # Fallback for local development - NEVER commit real passwords!
+    ADMIN_PASSWORD = "CHANGE_ME_IN_STREAMLIT_SECRETS"
 
 def init_database():
     """Initialize SQLite database and create table if it doesn't exist"""
@@ -141,7 +148,7 @@ def add_record(value, group_id):
 
 def check_admin_password(password):
     """Check if the provided password matches admin password"""
-    return hashlib.sha256(password.encode()).hexdigest() == ADMIN_PASSWORD_HASH
+    return password == ADMIN_PASSWORD
 
 def create_network_graph(df):
     """Create an interactive physics-based network graph with draggable nodes"""
