@@ -608,10 +608,10 @@ try:
                         }, 1);
                     });
 
-                    // Auto-refresh every 10 seconds
+                    // Auto-refresh every 60 seconds
                     setTimeout(function() {
                         window.location.reload();
-                    }, 15000);
+                    }, 60000);
                 </script>
                 """
                 html_content = html_content.replace('</body>', refresh_script + '</body>')
