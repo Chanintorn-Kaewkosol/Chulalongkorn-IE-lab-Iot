@@ -4,6 +4,8 @@ import pandas as pd
 from datetime import datetime
 import plotly.graph_objects as go
 import random
+import numpy as np
+import numpy as np
 
 # Database setup
 DB_NAME = "iot_db.db"
@@ -90,18 +92,16 @@ def get_statistics():
         "most_frequent_count": most_freq[1] if most_freq else 0
     }
 
-def create_bubble_chart(df):
-    """Create a floating bubble chart visualization"""
+def create_network_graph(df):
+    """Create an interactive physics-based network graph with circles and squares"""
     if df.empty:
         return None
 
-    # Create a copy to avoid modifying the original dataframe
+    # Create a copy to work with
     df_plot = df.copy()
 
-    # Assign random positions for floating effect
-    df_plot['x'] = [random.uniform(0, 10) for _ in range(len(df_plot))]
-    df_plot['y'] = [random.uniform(0, 10) for _ in range(len(df_plot))]
-    df_plot['size'] = [random.uniform(40, 120) for _ in range(len(df_plot))]  # 2x larger (was 20-60)
+    # Get unique group_ids
+    group_ids = df_plot['group_id'].unique()
 
     # Create color mapping for different values
     unique_values = df_plot['value'].unique()
@@ -112,26 +112,100 @@ def create_bubble_chart(df):
     for idx, val in enumerate(unique_values):
         colors[val] = color_palette[idx % len(color_palette)]
 
-    df_plot['color'] = df_plot['value'].map(colors)
+    # Initialize positions for group nodes (squares) using circular layout
+    group_positions = {}
+    num_groups = len(group_ids)
+    radius = 5
 
-    # Create the bubble chart
+    for idx, group_id in enumerate(group_ids):
+        angle = 2 * np.pi * idx / num_groups if num_groups > 0 else 0
+        group_positions[group_id] = {
+            'x': radius * np.cos(angle),
+            'y': radius * np.sin(angle)
+        }
+
+    # Create figure
     fig = go.Figure()
 
+    # Draw edges first (so they appear behind nodes)
+    edge_x = []
+    edge_y = []
+
+    for idx, row in df_plot.iterrows():
+        group_id = row['group_id']
+        if group_id in group_positions:
+            # Position data nodes around their group node
+            angle = random.uniform(0, 2 * np.pi)
+            distance = random.uniform(1, 2)
+
+            data_x = group_positions[group_id]['x'] + distance * np.cos(angle)
+            data_y = group_positions[group_id]['y'] + distance * np.sin(angle)
+
+            df_plot.at[idx, 'x'] = data_x
+            df_plot.at[idx, 'y'] = data_y
+
+            # Add edge coordinates
+            edge_x.extend([group_positions[group_id]['x'], data_x, None])
+            edge_y.extend([group_positions[group_id]['y'], data_y, None])
+        else:
+            # For None group_id, place randomly
+            df_plot.at[idx, 'x'] = random.uniform(-8, 8)
+            df_plot.at[idx, 'y'] = random.uniform(-8, 8)
+
+    # Add edges
+    fig.add_trace(go.Scatter(
+        x=edge_x,
+        y=edge_y,
+        mode='lines',
+        line=dict(width=2, color='rgba(150, 150, 150, 0.5)'),
+        hoverinfo='none',
+        showlegend=False
+    ))
+
+    # Add group nodes (squares)
+    for group_id in group_ids:
+        if group_id is not None:
+            fig.add_trace(go.Scatter(
+                x=[group_positions[group_id]['x']],
+                y=[group_positions[group_id]['y']],
+                mode='markers+text',
+                marker=dict(
+                    size=50,
+                    color='#34495e',
+                    symbol='square',
+                    opacity=0.9,
+                    line=dict(color='white', width=3)
+                ),
+                text=str(group_id),
+                textposition="middle center",
+                textfont=dict(size=11, color='white', family='Arial Black'),
+                hovertemplate=f"<b>Group ID:</b> {group_id}<br>" +
+                             f"<b>Records:</b> {len(df_plot[df_plot['group_id'] == group_id])}<br>" +
+                             "<extra></extra>",
+                showlegend=False,
+                name=f"group_{group_id}"
+            ))
+
+    # Add data nodes (circles)
     for _, row in df_plot.iterrows():
+        node_color = colors.get(row['value'], '#95A5A6')
+
         fig.add_trace(go.Scatter(
             x=[row['x']],
             y=[row['y']],
             mode='markers+text',
             marker=dict(
-                size=row['size'],
-                color=row['color'],
-                opacity=0.7,
+                size=40,
+                color=node_color,
+                symbol='circle',
+                opacity=0.8,
                 line=dict(color='white', width=2)
             ),
-            text=str(row['value']),
+            text=str(row['value'])[:10],  # Truncate long values
             textposition="middle center",
-            textfont=dict(size=12, color='white', family='Arial Black'),
-            hovertemplate=f"<b>Value:</b> {row['value']}<br>" +
+            textfont=dict(size=10, color='white', family='Arial Black'),
+            hovertemplate=f"<b>ID:</b> {row['id']}<br>" +
+                         f"<b>Value:</b> {row['value']}<br>" +
                          f"<b>Group ID:</b> {row['group_id']}<br>" +
                          f"<b>Timestamp:</b> {row['timestamp']}<br>" +
                          "<extra></extra>",
@@ -139,13 +213,15 @@ def create_bubble_chart(df):
         ))
 
     fig.update_layout(
-        title="Real-time Data Visualization",
-        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
-        yaxis=dict(showgrid=False, showticklabels=False, zeroline=False),
-        plot_bgcolor='rgba(0,0,0,0)',
+        title="Interactive Network Graph - Drag nodes to move them!",
+        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False, range=[-10, 10]),
+        yaxis=dict(showgrid=False, showticklabels=False, zeroline=False, range=[-10, 10]),
+        plot_bgcolor='rgba(240, 240, 245, 0.5)',
         paper_bgcolor='rgba(0,0,0,0)',
-        height=600,
-        margin=dict(l=20, r=20, t=40, b=20)
+        height=700,
+        margin=dict(l=20, r=20, t=60, b=20),
+        dragmode='pan',
+        hovermode='closest'
     )
 
     return fig
@@ -205,7 +281,7 @@ except Exception as e:
 st.markdown("---")
 
 # Bubble chart visualization
-st.header("🔵 Real-time Data Nodes")
+st.header("🔵 Interactive Network Graph")
 
 # Number of records to display
 num_records = st.slider("Number of records to display", 10, 100, 50)
@@ -214,10 +290,11 @@ try:
     df = get_all_data(limit=num_records)
 
     if not df.empty:
-        # Create and display bubble chart
-        fig = create_bubble_chart(df)
+        # Create and display network graph
+        fig = create_network_graph(df)
         if fig:
             st.plotly_chart(fig, use_container_width=True)
+            st.info("💡 Tip: You can pan and zoom the graph. Hover over nodes to see details!")
 
         st.markdown("---")
 
