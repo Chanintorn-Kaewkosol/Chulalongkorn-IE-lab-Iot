@@ -193,7 +193,7 @@ def create_network_graph(df):
         },
         "nodes": {
             "font": {
-                "size": 18,
+                "size": 36,
                 "color": "white",
                 "bold": {
                     "color": "white"
