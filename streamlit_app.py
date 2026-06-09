@@ -345,6 +345,12 @@ init_database()
 # Initialize session state
 if 'admin_logged_in' not in st.session_state:
     st.session_state.admin_logged_in = False
+if 'last_refresh_time' not in st.session_state:
+    st.session_state.last_refresh_time = time.time()
+if 'last_record_count' not in st.session_state:
+    st.session_state.last_record_count = 0
+if 'auto_refresh_enabled' not in st.session_state:
+    st.session_state.auto_refresh_enabled = True
 
 # Page configuration
 st.set_page_config(
@@ -353,22 +359,48 @@ st.set_page_config(
     layout="wide"
 )
 
-# Auto-reload every 5 seconds
-st_autorefresh = st.empty()
-with st_autorefresh:
-    # This creates a placeholder that will trigger rerun
-    time.sleep(0.1)
+# Check for database changes
+def check_database_changed():
+    """Check if database has new records"""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sensor_data")
+        current_count = cursor.fetchone()[0]
+        conn.close()
 
-# JavaScript for auto-refresh every 5 seconds
-st.markdown("""
-    <script>
-        setTimeout(function() {
-            window.parent.location.reload();
-        }, 5000);
-    </script>
-""", unsafe_allow_html=True)
+        if current_count != st.session_state.last_record_count:
+            st.session_state.last_record_count = current_count
+            return True
+        return False
+    except:
+        return False
+
+# Auto-refresh mechanism
+current_time = time.time()
+time_since_refresh = current_time - st.session_state.last_refresh_time
+db_changed = check_database_changed()
+
+# Refresh every 5 seconds OR if database changed
+if st.session_state.auto_refresh_enabled and (time_since_refresh >= 5 or db_changed):
+    st.session_state.last_refresh_time = current_time
+    time.sleep(0.1)  # Small delay to prevent too rapid refreshes
+    st.rerun()
 
 st.title("🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard")
+
+# Auto-refresh toggle in sidebar
+with st.sidebar:
+    st.header("⚙️ Settings")
+    auto_refresh = st.toggle("Auto-refresh (5s)", value=st.session_state.auto_refresh_enabled, key="refresh_toggle")
+    st.session_state.auto_refresh_enabled = auto_refresh
+
+    if st.session_state.auto_refresh_enabled:
+        time_until_refresh = max(0, 5 - int(time_since_refresh))
+        st.info(f"🔄 Next refresh in: {time_until_refresh}s")
+        st.caption(f"📊 Total records: {st.session_state.last_record_count}")
+    else:
+        st.warning("⏸️ Auto-refresh paused")
 
 # Get query parameters from URL
 query_params = st.query_params
