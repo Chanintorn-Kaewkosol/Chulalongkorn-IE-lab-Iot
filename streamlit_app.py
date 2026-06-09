@@ -2,9 +2,10 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import plotly.graph_objects as go
-import random
-import numpy as np
+from pyvis.network import Network
+import streamlit.components.v1 as components
+import tempfile
+import os
 import numpy as np
 
 # Database setup
@@ -93,138 +94,115 @@ def get_statistics():
     }
 
 def create_network_graph(df):
-    """Create an interactive physics-based network graph with circles and squares"""
+    """Create an interactive physics-based network graph with draggable nodes"""
     if df.empty:
         return None
 
-    # Create a copy to work with
-    df_plot = df.copy()
+    # Create a Network object with physics enabled
+    net = Network(
+        height='700px',
+        width='100%',
+        bgcolor='#f0f0f5',
+        font_color='#333333',
+        notebook=False
+    )
 
-    # Get unique group_ids
-    group_ids = df_plot['group_id'].unique()
+    # Enable physics for spring-force simulation
+    net.set_options("""
+    {
+        "physics": {
+            "enabled": true,
+            "forceAtlas2Based": {
+                "gravitationalConstant": -50,
+                "centralGravity": 0.01,
+                "springLength": 100,
+                "springConstant": 0.08,
+                "damping": 0.4,
+                "avoidOverlap": 0.5
+            },
+            "maxVelocity": 50,
+            "solver": "forceAtlas2Based",
+            "timestep": 0.35,
+            "stabilization": {
+                "enabled": true,
+                "iterations": 100
+            }
+        },
+        "interaction": {
+            "dragNodes": true,
+            "dragView": true,
+            "zoomView": true,
+            "hover": true
+        },
+        "nodes": {
+            "font": {
+                "size": 14,
+                "color": "white",
+                "bold": {
+                    "color": "white"
+                }
+            }
+        }
+    }
+    """)
 
-    # Create color mapping for different values
-    unique_values = df_plot['value'].unique()
-    colors = {}
+    # Color palette for different values
     color_palette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
                      '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B500', '#52B788']
 
+    # Create color mapping
+    unique_values = df['value'].unique()
+    colors = {}
     for idx, val in enumerate(unique_values):
         colors[val] = color_palette[idx % len(color_palette)]
 
-    # Initialize positions for group nodes (squares) using circular layout
-    group_positions = {}
-    num_groups = len(group_ids)
-    radius = 5
-
-    for idx, group_id in enumerate(group_ids):
-        angle = 2 * np.pi * idx / num_groups if num_groups > 0 else 0
-        group_positions[group_id] = {
-            'x': radius * np.cos(angle),
-            'y': radius * np.sin(angle)
-        }
-
-    # Create figure
-    fig = go.Figure()
-
-    # Draw edges first (so they appear behind nodes)
-    edge_x = []
-    edge_y = []
-
-    for idx, row in df_plot.iterrows():
-        group_id = row['group_id']
-        if group_id in group_positions:
-            # Position data nodes around their group node
-            angle = random.uniform(0, 2 * np.pi)
-            distance = random.uniform(1, 2)
-
-            data_x = group_positions[group_id]['x'] + distance * np.cos(angle)
-            data_y = group_positions[group_id]['y'] + distance * np.sin(angle)
-
-            df_plot.at[idx, 'x'] = data_x
-            df_plot.at[idx, 'y'] = data_y
-
-            # Add edge coordinates
-            edge_x.extend([group_positions[group_id]['x'], data_x, None])
-            edge_y.extend([group_positions[group_id]['y'], data_y, None])
-        else:
-            # For None group_id, place randomly
-            df_plot.at[idx, 'x'] = random.uniform(-8, 8)
-            df_plot.at[idx, 'y'] = random.uniform(-8, 8)
-
-    # Add edges
-    fig.add_trace(go.Scatter(
-        x=edge_x,
-        y=edge_y,
-        mode='lines',
-        line=dict(width=2, color='rgba(150, 150, 150, 0.5)'),
-        hoverinfo='none',
-        showlegend=False
-    ))
+    # Get unique group_ids
+    group_ids = df['group_id'].unique()
 
     # Add group nodes (squares)
     for group_id in group_ids:
         if group_id is not None:
-            fig.add_trace(go.Scatter(
-                x=[group_positions[group_id]['x']],
-                y=[group_positions[group_id]['y']],
-                mode='markers+text',
-                marker=dict(
-                    size=50,
-                    color='#34495e',
-                    symbol='square',
-                    opacity=0.9,
-                    line=dict(color='white', width=3)
-                ),
-                text=str(group_id),
-                textposition="middle center",
-                textfont=dict(size=11, color='white', family='Arial Black'),
-                hovertemplate=f"<b>Group ID:</b> {group_id}<br>" +
-                             f"<b>Records:</b> {len(df_plot[df_plot['group_id'] == group_id])}<br>" +
-                             "<extra></extra>",
-                showlegend=False,
-                name=f"group_{group_id}"
-            ))
+            group_node_id = f"group_{group_id}"
+            count = len(df[df['group_id'] == group_id])
 
-    # Add data nodes (circles)
-    for _, row in df_plot.iterrows():
+            net.add_node(
+                group_node_id,
+                label=str(group_id),
+                shape='box',
+                color='#34495e',
+                size=30,
+                title=f"Group: {group_id}<br>Records: {count}",
+                mass=5  # Heavier mass for group nodes
+            )
+
+    # Add data nodes (circles) and edges
+    for idx, row in df.iterrows():
+        node_id = f"data_{row['id']}"
         node_color = colors.get(row['value'], '#95A5A6')
+        value_display = str(row['value'])[:10]  # Truncate long values
 
-        fig.add_trace(go.Scatter(
-            x=[row['x']],
-            y=[row['y']],
-            mode='markers+text',
-            marker=dict(
-                size=40,
-                color=node_color,
-                symbol='circle',
-                opacity=0.8,
-                line=dict(color='white', width=2)
-            ),
-            text=str(row['value'])[:10],  # Truncate long values
-            textposition="middle center",
-            textfont=dict(size=10, color='white', family='Arial Black'),
-            hovertemplate=f"<b>ID:</b> {row['id']}<br>" +
-                         f"<b>Value:</b> {row['value']}<br>" +
-                         f"<b>Group ID:</b> {row['group_id']}<br>" +
-                         f"<b>Timestamp:</b> {row['timestamp']}<br>" +
-                         "<extra></extra>",
-            showlegend=False
-        ))
+        # Add data node
+        net.add_node(
+            node_id,
+            label=value_display,
+            shape='dot',
+            color=node_color,
+            size=20,
+            title=f"ID: {row['id']}<br>Value: {row['value']}<br>Group: {row['group_id']}<br>Time: {row['timestamp']}",
+            mass=2  # Lighter mass for data nodes
+        )
 
-    fig.update_layout(
-        title="Interactive Network Graph - Drag nodes to move them!",
-        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False, range=[-10, 10]),
-        yaxis=dict(showgrid=False, showticklabels=False, zeroline=False, range=[-10, 10]),
-        plot_bgcolor='rgba(240, 240, 245, 0.5)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=700,
-        margin=dict(l=20, r=20, t=60, b=20),
-        dragmode='pan',
-        hovermode='closest'
-    )
+        # Add edge connecting data node to group node
+        if row['group_id'] is not None:
+            group_node_id = f"group_{row['group_id']}"
+            net.add_edge(
+                node_id,
+                group_node_id,
+                color='rgba(150, 150, 150, 0.5)',
+                width=2
+            )
 
-    return fig
+    return net
 
 # Initialize database
 init_database()
@@ -291,10 +269,27 @@ try:
 
     if not df.empty:
         # Create and display network graph
-        fig = create_network_graph(df)
-        if fig:
-            st.plotly_chart(fig, use_container_width=True)
-            st.info("💡 Tip: You can pan and zoom the graph. Hover over nodes to see details!")
+        net = create_network_graph(df)
+        if net:
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.html', mode='w', encoding='utf-8') as tmpfile:
+                net.save_graph(tmpfile.name)
+                tmpfile_path = tmpfile.name
+
+            # Read the HTML
+            with open(tmpfile_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+
+            # Display using Streamlit components
+            components.html(html_content, height=720, scrolling=False)
+
+            # Clean up temp file
+            try:
+                os.unlink(tmpfile_path)
+            except:
+                pass
+
+            st.info("🎮 **Controls:** Drag nodes to move them! They'll bounce back with physics. Scroll to zoom, drag background to pan.")
 
         st.markdown("---")
 
