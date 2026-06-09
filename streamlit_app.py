@@ -213,7 +213,7 @@ def create_network_graph(df):
                 node_id,
                 group_node_id,
                 color='rgba(150, 150, 150, 0.5)',
-                width=2
+                width=5
             )
 
     return net
