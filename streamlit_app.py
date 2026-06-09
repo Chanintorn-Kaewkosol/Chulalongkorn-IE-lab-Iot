@@ -347,16 +347,6 @@ if 'admin_logged_in' not in st.session_state:
     st.session_state.admin_logged_in = False
 if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = time.time()
-if 'last_record_count' not in st.session_state:
-    # Initialize with current database count
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM sensor_data")
-        st.session_state.last_record_count = cursor.fetchone()[0]
-        conn.close()
-    except:
-        st.session_state.last_record_count = 0
 if 'auto_refresh_enabled' not in st.session_state:
     st.session_state.auto_refresh_enabled = True
 
@@ -367,22 +357,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Check for database changes
-def check_database_changed():
-    """Check if database has new records"""
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM sensor_data")
-        current_count = cursor.fetchone()[0]
-        conn.close()
-
-        if current_count != st.session_state.last_record_count:
-            st.session_state.last_record_count = current_count
-            return True
-        return False
-    except:
-        return False
 
 st.title("🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard")
 
@@ -402,7 +376,6 @@ with st.sidebar:
     if st.session_state.auto_refresh_enabled:
         time_until_refresh = max(0, 5 - int(time_since_refresh))
         st.info(f"🔄 Next refresh in: {time_until_refresh}s")
-        st.caption(f"📊 Total records: {st.session_state.last_record_count}")
     else:
         st.warning("⏸️ Auto-refresh paused")
 
@@ -534,26 +507,13 @@ if "value" in query_params:
 
     # Save to database
     if save_sensor_data(sensor_value, group_id):
-        # Update record count from database
-        try:
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM sensor_data")
-            st.session_state.last_record_count = cursor.fetchone()[0]
-            conn.close()
-        except:
-            pass
-
         group_display = f"group '{group_id}'" if group_id else "no group (None)"
         st.success(f"✅ Data received and saved: {sensor_value} from {group_display}")
         st.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-        # Reset refresh timer
-        st.session_state.last_refresh_time = time.time()
-
     # Clear the query params to avoid re-saving on refresh
     st.query_params.clear()
-    # Force refresh to show new data immediately
+    # Force immediate refresh to show new data
     time.sleep(0.2)
     st.rerun()
 
@@ -669,12 +629,8 @@ st.markdown("---")
 if st.button("🔄 Refresh Dashboard"):
     st.rerun()
 
-# Auto-refresh logic at the end (after all content is displayed)
-# Check for database changes or time-based refresh
-db_changed = check_database_changed()
-
-# Refresh every 5 seconds OR if database changed
-if st.session_state.auto_refresh_enabled and (time_since_refresh >= 5 or db_changed):
+# Simple auto-refresh: just rerun every 5 seconds if enabled
+if st.session_state.auto_refresh_enabled and time_since_refresh >= 5:
     st.session_state.last_refresh_time = time.time()
-    time.sleep(0.1)  # Small delay to prevent too rapid refreshes
+    time.sleep(0.1)
     st.rerun()
