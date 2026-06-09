@@ -219,7 +219,7 @@ def create_network_graph(df):
             "enabled": true,
             "forceAtlas2Based": {
                 "gravitationalConstant": -50,
-                "centralGravity": 0.005,
+                "centralGravity": 0.001,
                 "springLength": 100,
                 "springConstant": 0.08,
                 "damping": 0.2,
@@ -230,7 +230,7 @@ def create_network_graph(df):
             "timestep": 0.35,
             "stabilization": {
                 "enabled": true,
-                "iterations": 100
+                "iterations": 250
             }
         },
         "interaction": {
