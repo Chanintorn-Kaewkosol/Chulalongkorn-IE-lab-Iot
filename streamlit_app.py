@@ -12,15 +12,32 @@ def init_database():
     """Initialize SQLite database and create table if it doesn't exist"""
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sensor_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            value TEXT NOT NULL,
-            group_id TEXT
-        )
-    """)
-    conn.commit()
+
+    # Check if table exists and has old schema
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='sensor_data'")
+    table_exists = cursor.fetchone()
+
+    if table_exists:
+        # Check if old column sensor_id exists
+        cursor.execute("PRAGMA table_info(sensor_data)")
+        columns = [col[1] for col in cursor.fetchall()]
+
+        if 'sensor_id' in columns and 'group_id' not in columns:
+            # Migrate: rename sensor_id to group_id
+            cursor.execute("ALTER TABLE sensor_data RENAME COLUMN sensor_id TO group_id")
+            conn.commit()
+    else:
+        # Create new table with group_id
+        cursor.execute("""
+            CREATE TABLE sensor_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                value TEXT NOT NULL,
+                group_id TEXT
+            )
+        """)
+        conn.commit()
+
     conn.close()
 
 def save_sensor_data(value, group_id=None):
