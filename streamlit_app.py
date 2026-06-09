@@ -528,9 +528,9 @@ https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_DATA>&group_id=<GROUP_N
 ```
 
 ### Examples:
-- `?value=temperature_high&group_id=room1`
-- `?value=25.5&group_id=sensor_a`
-- `?value=active`
+- `?value=Hello&group_id=Group_1`
+- `?value=25.5&group_id=Group_2`
+- `?value=1234`
 """)
 
 # Refresh button
