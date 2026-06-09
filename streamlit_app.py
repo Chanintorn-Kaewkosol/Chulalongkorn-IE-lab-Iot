@@ -580,7 +580,7 @@ try:
                     setTimeout(function() {{
                         // Only refresh this component
                         window.location.reload();
-                    }}, 5000);
+                    }}, 10000);
                 </script>
                 """
                 html_content = html_content.replace('</body>', refresh_script + '</body>')
