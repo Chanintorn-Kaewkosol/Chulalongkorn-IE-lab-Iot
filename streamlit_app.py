@@ -95,13 +95,16 @@ def create_bubble_chart(df):
     if df.empty:
         return None
 
+    # Create a copy to avoid modifying the original dataframe
+    df_plot = df.copy()
+
     # Assign random positions for floating effect
-    df['x'] = [random.uniform(0, 10) for _ in range(len(df))]
-    df['y'] = [random.uniform(0, 10) for _ in range(len(df))]
-    df['size'] = [random.uniform(20, 60) for _ in range(len(df))]
+    df_plot['x'] = [random.uniform(0, 10) for _ in range(len(df_plot))]
+    df_plot['y'] = [random.uniform(0, 10) for _ in range(len(df_plot))]
+    df_plot['size'] = [random.uniform(40, 120) for _ in range(len(df_plot))]  # 2x larger (was 20-60)
 
     # Create color mapping for different values
-    unique_values = df['value'].unique()
+    unique_values = df_plot['value'].unique()
     colors = {}
     color_palette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
                      '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B500', '#52B788']
@@ -109,12 +112,12 @@ def create_bubble_chart(df):
     for idx, val in enumerate(unique_values):
         colors[val] = color_palette[idx % len(color_palette)]
 
-    df['color'] = df['value'].map(colors)
+    df_plot['color'] = df_plot['value'].map(colors)
 
     # Create the bubble chart
     fig = go.Figure()
 
-    for _, row in df.iterrows():
+    for _, row in df_plot.iterrows():
         fig.add_trace(go.Scatter(
             x=[row['x']],
             y=[row['y']],
@@ -218,12 +221,13 @@ try:
 
         st.markdown("---")
 
-        # Display data table
+        # Display data table (only id, timestamp, value, group_id)
         st.subheader("📋 Data Table")
-        st.dataframe(df, use_container_width=True)
+        df_display = df[['id', 'timestamp', 'value', 'group_id']]
+        st.dataframe(df_display, use_container_width=True)
 
         # Download button
-        csv = df.to_csv(index=False)
+        csv = df_display.to_csv(index=False)
         st.download_button(
             label="📥 Download Data as CSV",
             data=csv,
