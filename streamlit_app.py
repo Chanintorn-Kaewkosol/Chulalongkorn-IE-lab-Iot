@@ -171,10 +171,10 @@ def create_network_graph(df):
             "enabled": true,
             "forceAtlas2Based": {
                 "gravitationalConstant": -50,
-                "centralGravity": 0.05,
+                "centralGravity": 0.001,
                 "springLength": 100,
                 "springConstant": 0.08,
-                "damping": 0.4,
+                "damping": 0.2,
                 "avoidOverlap": 0.5
             },
             "maxVelocity": 50,
