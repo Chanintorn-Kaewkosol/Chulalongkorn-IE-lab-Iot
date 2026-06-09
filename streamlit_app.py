@@ -587,17 +587,21 @@ st.markdown("---")
 st.header("🔵 Interactive Network Graph")
 
 # Number of records input (exact value)
-num_records = st.number_input("Number of records to display", min_value=1, max_value=500, value=50, step=10)
+num_records = st.number_input("Number of records to display", min_value=1, max_value=500, value=50, step=10, key="num_records_input")
 
 try:
     df = get_all_data(limit=num_records)
 
     if not df.empty:
+        # Show last update time
+        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
         # Create and display network graph
         net = create_network_graph(df)
         if net:
-            # Save to temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.html', mode='w', encoding='utf-8') as tmpfile:
+            # Save to temporary file with unique name to prevent caching
+            unique_id = hashlib.md5(f"{datetime.now().timestamp()}".encode()).hexdigest()
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'_{unique_id}.html', mode='w', encoding='utf-8') as tmpfile:
                 net.save_graph(tmpfile.name)
                 tmpfile_path = tmpfile.name
 
@@ -605,8 +609,8 @@ try:
             with open(tmpfile_path, 'r', encoding='utf-8') as f:
                 html_content = f.read()
 
-            # Display using Streamlit components
-            components.html(html_content, height=720, scrolling=False)
+            # Display using Streamlit components with unique key to force refresh
+            components.html(html_content, height=720, scrolling=False, key=f"network_graph_{unique_id}")
 
             # Clean up temp file
             try:
@@ -621,7 +625,8 @@ try:
         # Display data table (only id, timestamp, value, group_id)
         st.subheader("📋 Data Table")
         df_display = df[['id', 'timestamp', 'value', 'group_id']]
-        st.dataframe(df_display, use_container_width=True)
+        # Force table refresh by using a unique key
+        st.dataframe(df_display, use_container_width=True, key=f"data_table_{unique_id}")
 
         # Download button
         csv = df_display.to_csv(index=False)
