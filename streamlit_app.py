@@ -374,7 +374,7 @@ with st.sidebar:
     st.session_state.auto_refresh_enabled = auto_refresh
 
     if st.session_state.auto_refresh_enabled:
-        time_until_refresh = max(0, 5 - int(time_since_refresh))
+        time_until_refresh = max(0, 10 - int(time_since_refresh))
         st.info(f"🔄 Next refresh in: {time_until_refresh}s")
         st.caption(f"⏰ Current time: {datetime.now().strftime('%H:%M:%S')}")
     else:
