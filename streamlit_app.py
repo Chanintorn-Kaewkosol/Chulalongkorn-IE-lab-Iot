@@ -348,7 +348,15 @@ if 'admin_logged_in' not in st.session_state:
 if 'last_refresh_time' not in st.session_state:
     st.session_state.last_refresh_time = time.time()
 if 'last_record_count' not in st.session_state:
-    st.session_state.last_record_count = 0
+    # Initialize with current database count
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sensor_data")
+        st.session_state.last_record_count = cursor.fetchone()[0]
+        conn.close()
+    except:
+        st.session_state.last_record_count = 0
 if 'auto_refresh_enabled' not in st.session_state:
     st.session_state.auto_refresh_enabled = True
 
@@ -376,18 +384,14 @@ def check_database_changed():
     except:
         return False
 
-# Auto-refresh mechanism
+st.title("🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard")
+
+# Get query parameters from URL
+query_params = st.query_params
+
+# Auto-refresh mechanism (calculate timing info)
 current_time = time.time()
 time_since_refresh = current_time - st.session_state.last_refresh_time
-db_changed = check_database_changed()
-
-# Refresh every 5 seconds OR if database changed
-if st.session_state.auto_refresh_enabled and (time_since_refresh >= 5 or db_changed):
-    st.session_state.last_refresh_time = current_time
-    time.sleep(0.1)  # Small delay to prevent too rapid refreshes
-    st.rerun()
-
-st.title("🌡️ Chulalongkorn IoT Lab - Sensor Data Dashboard")
 
 # Auto-refresh toggle in sidebar
 with st.sidebar:
@@ -401,9 +405,6 @@ with st.sidebar:
         st.caption(f"📊 Total records: {st.session_state.last_record_count}")
     else:
         st.warning("⏸️ Auto-refresh paused")
-
-# Get query parameters from URL
-query_params = st.query_params
 
 # Admin Panel Access
 if "admin" in query_params:
@@ -533,12 +534,28 @@ if "value" in query_params:
 
     # Save to database
     if save_sensor_data(sensor_value, group_id):
+        # Update record count from database
+        try:
+            conn = sqlite3.connect(DB_NAME)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM sensor_data")
+            st.session_state.last_record_count = cursor.fetchone()[0]
+            conn.close()
+        except:
+            pass
+
         group_display = f"group '{group_id}'" if group_id else "no group (None)"
         st.success(f"✅ Data received and saved: {sensor_value} from {group_display}")
         st.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+        # Reset refresh timer
+        st.session_state.last_refresh_time = time.time()
+
     # Clear the query params to avoid re-saving on refresh
     st.query_params.clear()
+    # Force refresh to show new data immediately
+    time.sleep(0.2)
+    st.rerun()
 
 # Display dashboard
 st.markdown("---")
@@ -645,4 +662,14 @@ https://chulalongkorn-lab-iot.streamlit.app/?value=<YOUR_DATA>&group_id=<GROUP_N
 # Refresh button
 st.markdown("---")
 if st.button("🔄 Refresh Dashboard"):
+    st.rerun()
+
+# Auto-refresh logic at the end (after all content is displayed)
+# Check for database changes or time-based refresh
+db_changed = check_database_changed()
+
+# Refresh every 5 seconds OR if database changed
+if st.session_state.auto_refresh_enabled and (time_since_refresh >= 5 or db_changed):
+    st.session_state.last_refresh_time = time.time()
+    time.sleep(0.1)  # Small delay to prevent too rapid refreshes
     st.rerun()
