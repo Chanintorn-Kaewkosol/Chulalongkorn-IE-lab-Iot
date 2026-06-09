@@ -148,11 +148,12 @@ query_params = st.query_params
 # Check if data is being sent via GET request
 if "value" in query_params:
     sensor_value = query_params["value"]
-    group_id = query_params.get("group_id", "default")
+    group_id = query_params.get("group_id", None)
 
     # Save to database
     if save_sensor_data(sensor_value, group_id):
-        st.success(f"✅ Data received and saved: {sensor_value} from group '{group_id}'")
+        group_display = f"group '{group_id}'" if group_id else "no group (None)"
+        st.success(f"✅ Data received and saved: {sensor_value} from {group_display}")
         st.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Clear the query params to avoid re-saving on refresh
