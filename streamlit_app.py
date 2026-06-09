@@ -551,7 +551,7 @@ st.header("🔵 Interactive Network Graph")
 graph_placeholder = st.empty()
 
 # Number of records input (exact value)
-num_records = st.number_input("Number of records to display", min_value=1, max_value=500, value=50, step=10, key="num_records_input")
+num_records = st.number_input("Number of records to display", min_value=1, max_value=1000, value=500, step=10, key="num_records_input")
 
 try:
     df = get_all_data(limit=num_records)
