@@ -605,7 +605,7 @@ try:
                                     });
                                 }
                             }
-                        }, 500);
+                        }, 10);
                     });
 
                     // Auto-refresh every 10 seconds
