@@ -376,6 +376,7 @@ with st.sidebar:
     if st.session_state.auto_refresh_enabled:
         time_until_refresh = max(0, 5 - int(time_since_refresh))
         st.info(f"🔄 Next refresh in: {time_until_refresh}s")
+        st.caption(f"⏰ Current time: {datetime.now().strftime('%H:%M:%S')}")
     else:
         st.warning("⏸️ Auto-refresh paused")
 
@@ -630,7 +631,14 @@ if st.button("🔄 Refresh Dashboard"):
     st.rerun()
 
 # Simple auto-refresh: just rerun every 5 seconds if enabled
-if st.session_state.auto_refresh_enabled and time_since_refresh >= 5:
-    st.session_state.last_refresh_time = time.time()
-    time.sleep(0.1)
-    st.rerun()
+if st.session_state.auto_refresh_enabled:
+    if time_since_refresh >= 5:
+        st.session_state.last_refresh_time = time.time()
+        time.sleep(0.1)
+        st.rerun()
+    else:
+        # Add meta refresh as backup
+        refresh_time = max(1, int(5 - time_since_refresh))
+        st.markdown(f"""
+            <meta http-equiv="refresh" content="{refresh_time}">
+        """, unsafe_allow_html=True)
