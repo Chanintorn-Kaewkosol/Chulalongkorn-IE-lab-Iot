@@ -150,6 +150,54 @@ def check_admin_password(password):
     """Check if the provided password matches admin password"""
     return password == ADMIN_PASSWORD
 
+def hex_to_hsl(hex_color):
+    """Convert hex color to HSL"""
+    hex_color = hex_color.lstrip('#')
+    r, g, b = tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))
+
+    max_c = max(r, g, b)
+    min_c = min(r, g, b)
+    l = (max_c + min_c) / 2
+
+    if max_c == min_c:
+        h = s = 0
+    else:
+        d = max_c - min_c
+        s = d / (2 - max_c - min_c) if l > 0.5 else d / (max_c + min_c)
+
+        if max_c == r:
+            h = (g - b) / d + (6 if g < b else 0)
+        elif max_c == g:
+            h = (b - r) / d + 2
+        else:
+            h = (r - g) / d + 4
+        h /= 6
+
+    return h * 360, s * 100, l * 100
+
+def hsl_to_hex(h, s, l):
+    """Convert HSL to hex color"""
+    h, s, l = h / 360, s / 100, l / 100
+
+    if s == 0:
+        r = g = b = l
+    else:
+        def hue_to_rgb(p, q, t):
+            if t < 0: t += 1
+            if t > 1: t -= 1
+            if t < 1/6: return p + (q - p) * 6 * t
+            if t < 1/2: return q
+            if t < 2/3: return p + (q - p) * (2/3 - t) * 6
+            return p
+
+        q = l * (1 + s) if l < 0.5 else l + s - l * s
+        p = 2 * l - q
+        r = hue_to_rgb(p, q, h + 1/3)
+        g = hue_to_rgb(p, q, h)
+        b = hue_to_rgb(p, q, h - 1/3)
+
+    return '#{:02x}{:02x}{:02x}'.format(int(r * 255), int(g * 255), int(b * 255))
+
 def create_network_graph(df):
     """Create an interactive physics-based network graph with draggable nodes"""
     if df.empty:
@@ -203,41 +251,70 @@ def create_network_graph(df):
     }
     """)
 
-    # Color palette for different values
-    color_palette = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-                     '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B500', '#52B788']
+    # Rainbow color palette (7 colors) for groups
+    rainbow_colors = [
+        '#FF0000',  # Red
+        '#FF7F00',  # Orange
+        '#FFFF00',  # Yellow
+        '#00FF00',  # Green
+        '#0000FF',  # Blue
+        '#4B0082',  # Indigo
+        '#9400D3'   # Violet
+    ]
 
-    # Create color mapping
-    unique_values = df['value'].unique()
-    colors = {}
-    for idx, val in enumerate(unique_values):
-        colors[val] = color_palette[idx % len(color_palette)]
+    # Get unique group_ids and create color mapping
+    group_ids = [g for g in df['group_id'].unique() if g is not None]
+    group_colors = {}
 
-    # Get unique group_ids
-    group_ids = df['group_id'].unique()
+    for idx, group_id in enumerate(group_ids):
+        # Assign rainbow color cycling through if more than 7 groups
+        group_colors[group_id] = rainbow_colors[idx % len(rainbow_colors)]
 
-    # Add group nodes (squares)
+    # Add group nodes (hexagons) with rainbow colors
     for group_id in group_ids:
-        if group_id is not None:
-            group_node_id = f"group_{group_id}"
-            count = len(df[df['group_id'] == group_id])
+        group_node_id = f"group_{group_id}"
+        count = len(df[df['group_id'] == group_id])
+        group_color = group_colors[group_id]
 
-            net.add_node(
-                group_node_id,
-                label=str(group_id),
-                shape='hexagon',
-                color='#000000',
-                size=30,  # Larger box size
-                title=f"Group: {group_id}<br>Records: {count}",
-                mass=2,  # Heavier mass for group nodes
-                font={'color': 'white', 'size': 16, 'face': 'Arial'}
-            )
+        net.add_node(
+            group_node_id,
+            label=str(group_id),
+            shape='hexagon',
+            color=group_color,
+            size=30,  # Larger box size
+            title=f"Group: {group_id}<br>Records: {count}",
+            mass=2,  # Heavier mass for group nodes
+            font={'color': 'white', 'size': 16, 'face': 'Arial'}
+        )
 
-    # Add data nodes (circles) and edges
+    # Add data nodes (circles) with color variations based on group
+    node_counter = {}  # Track nodes per group for variation
     for idx, row in df.iterrows():
         node_id = f"data_{row['id']}"
-        node_color = colors.get(row['value'], '#95A5A6')
-        value_display = str(row['value'])  # Truncate long values
+        value_display = str(row['value'])
+
+        # Determine node color
+        if row['group_id'] is not None and row['group_id'] in group_colors:
+            # Get base color from group
+            base_color = group_colors[row['group_id']]
+            h, s, l = hex_to_hsl(base_color)
+
+            # Create variation by adjusting lightness and saturation
+            # Track how many nodes we've seen in this group
+            if row['group_id'] not in node_counter:
+                node_counter[row['group_id']] = 0
+            node_counter[row['group_id']] += 1
+
+            # Vary lightness between 40% and 80%
+            # Vary saturation between 60% and 100%
+            variation = (node_counter[row['group_id']] * 37) % 100  # pseudo-random variation
+            new_l = 40 + (variation % 40)
+            new_s = 60 + (variation % 40)
+
+            node_color = hsl_to_hex(h, new_s, new_l)
+        else:
+            # Nodes without group get a gray color
+            node_color = '#95A5A6'
 
         # Add data node
         net.add_node(
