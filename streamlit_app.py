@@ -226,7 +226,7 @@ def create_network_graph(df):
                 group_node_id,
                 label=str(group_id),
                 shape='box',
-                color='#34495e',
+                color='#FFFFFF',
                 size=60,  # Larger box size
                 title=f"Group: {group_id}<br>Records: {count}",
                 mass=5,  # Heavier mass for group nodes
@@ -245,7 +245,7 @@ def create_network_graph(df):
             label=value_display,
             shape='dot',
             color=node_color,
-            size=20,
+            size=30,
             title=f"ID: {row['id']}<br>Value: {row['value']}<br>Group: {row['group_id']}<br>Time: {row['timestamp']}",
             mass=2  # Lighter mass for data nodes
         )
@@ -257,7 +257,7 @@ def create_network_graph(df):
                 node_id,
                 group_node_id,
                 color='rgba(150, 150, 150, 0.5)',
-                width=5
+                width=10
             )
 
     return net
