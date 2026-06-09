@@ -322,7 +322,7 @@ def create_network_graph(df):
             label=value_display,
             shape='dot',
             color=node_color,
-            size=30,
+            size=12,
             title=f"ID: {row['id']}<br>Value: {row['value']}<br>Group: {row['group_id']}<br>Time: {row['timestamp']}",
             mass=1  # Lighter mass for data nodes
         )
